@@ -1,0 +1,6 @@
+{
+  "PublicDirectoryPath": "public",
+  "Domain": "localhost",
+  "Port": 2425,
+  "ConnectionString": "Host=localhost;Port=5432;Database=users;Username=postgres;Password=g7-gh-c5hc;"
+}
