@@ -1,6 +1,7 @@
 ﻿using MiniHttpServer.Core.Abstracts;
 using MiniHttpServer.Core.Attributes;
 using MiniHttpServer.Framework.Core;
+using MiniHttpServer.Framework.Core.HttpResponse;
 using MiniHttpServer.shared;
 using System;
 using System.Collections.Generic;
@@ -11,92 +12,114 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace MiniHttpServer.Core.Handlers
+namespace MiniHttpServer.FrameWork.Core.Handlers
 {
     class EndPointsHandler : Handler
     {
         public override async void HandleRequest(HttpListenerContext context)
         {
+            var request = context.Request;
+            var endpointName = request.Url.AbsolutePath.Split('/')[^2];
 
-            if (true)
+            var assembly = Assembly.GetEntryAssembly();
+            var endpoint = assembly.GetTypes()
+                                   .FirstOrDefault(t => t.GetCustomAttribute<EndpointAttribute>() != null &&
+                                                        IsCheckedNameEndpoint(t.Name, endpointName));
+            if (endpoint == null) return;
+
+            var method = endpoint.GetMethods()
+                                 .FirstOrDefault(m => m.GetCustomAttributes(true)
+                                                        .Any(attr => attr.GetType().Name.StartsWith($"Http{request.HttpMethod}", StringComparison.OrdinalIgnoreCase)) &&
+                                                    IsMethodForCurrentPath(m, request.Url.AbsolutePath));
+
+            if (method == null)
             {
-                var request = context.Request;
-                var endpointName = request.Url?.AbsolutePath.Split('/')
-                    .Where(p => p != string.Empty && p != null).First();
+                method = endpoint.GetMethods()
+                                 .FirstOrDefault(m => m.GetCustomAttributes(true)
+                                                        .Any(attr => attr.GetType().Name.Equals($"Http{request.HttpMethod}", StringComparison.OrdinalIgnoreCase)));
+            }
 
-                var assembly = Assembly.GetEntryAssembly();
-                var endpoint = assembly.GetTypes()
-                    .Where(t => t.GetCustomAttribute<Endpoint>() != null)
-                    .FirstOrDefault(end => IsCheckedNameEndpoint(end.Name, endpointName));
+            if (method == null) return;
 
-                if (endpoint == null) return; //hw
+            string body;
+            using (var reader = new StreamReader(request.InputStream, request.ContentEncoding))
+            {
+                body = reader.ReadToEnd();
+            }
 
-                var method = endpoint.GetMethods().Where(t => t.GetCustomAttributes(true)
-                    .Any(attr => attr.GetType().Name.Equals($"Http{context.Request.HttpMethod}", StringComparison.OrdinalIgnoreCase))).FirstOrDefault();
-
-                if (method == null) return; //hw
-
-                var reader = new StreamReader(request.InputStream, request.ContentEncoding);
-                var body = reader.ReadToEnd();
-
-                var postParams = new Dictionary<string, string>();
+            var postParams = new Dictionary<string, string>();
+            if (!string.IsNullOrEmpty(body))
+            {
                 foreach (var pair in body.Split('&'))
                 {
-                    var kv = pair.Split('=');
-                    postParams[WebUtility.UrlDecode(kv[0])] = WebUtility.UrlDecode(kv[1]);
-                }
-
-                var parameters = method.GetParameters()
-                                         .Select(p => postParams.ContainsKey(p.Name) ? postParams[p.Name] : null)
-                                         .ToArray();
-
-                bool isBaseEndpoint = endpoint.Assembly.GetTypes()
-                                      .Any(t => typeof(EndpointBase)
-                                      .IsAssignableFrom(t) && !t.IsAbstract);
-
-                var instanceEndpoint = Activator.CreateInstance(endpoint);
-
-                if (isBaseEndpoint)
-                {
-                    (instanceEndpoint as EndpointBase).SetContext(context);
-                }
-
-                var result = method.Invoke(Activator.CreateInstance(endpoint), parameters);
-
-                if(result is string stringContent)
-                {
-                    await WriteResponseAsync(context.Response, stringContent);
-                }
-
-                else
-                {
-                    //hw
-                    await WriteResponseAsync(context.Response, result.ToString() ?? "Sending data. Status(OK)");
+                    if (string.IsNullOrEmpty(pair)) continue;
+                    var kv = pair.Split('=', 2);
+                    if (kv.Length == 2)
+                        postParams[WebUtility.UrlDecode(kv[0])] = WebUtility.UrlDecode(kv[1]);
                 }
             }
 
-            // передача запроса дальше по цепи при наличии в ней обработчиков
+            var parameters = method.GetParameters()
+                                   .Select(p => postParams.ContainsKey(p.Name) ? postParams[p.Name] : null)
+                                   .ToArray();
 
-            else if (Successor != null)
+            var instance = Activator.CreateInstance(endpoint);
+            if (typeof(EndpointBase).IsAssignableFrom(endpoint))
             {
-                Successor.HandleRequest(context);
+                (instance as EndpointBase)?.SetContext(context);
+            }
+
+            var ret = method.Invoke(instance, parameters);
+
+            if (ret is IHttpResult httpResult)
+            {
+                await WriteResponseAsync(context.Response, httpResult.Execute(context));
+            }
+            else if (ret is string strResult)
+            {
+                await WriteResponseAsync(context.Response, strResult);
+            }
+            else if (ret != null)
+            {
+                await WriteResponseAsync(context.Response, ret.ToString());
+            }
+            else
+            {
+                context.Response.StatusCode = 200;
+                await WriteResponseAsync(context.Response, "OK");
             }
         }
 
         private bool IsCheckedNameEndpoint(string endpointName, string className) =>
             endpointName.Equals(className, StringComparison.OrdinalIgnoreCase) ||
-            endpointName.Equals($"{className}Endpoint", StringComparison.OrdinalIgnoreCase);
+            endpointName.Equals($"{className}EndPoint", StringComparison.OrdinalIgnoreCase);
+
+        private bool IsMethodForCurrentPath(MethodInfo method, string currentPath)
+        {
+            var segments = currentPath.Split('/');
+            var httpAttr = method.GetCustomAttributes().FirstOrDefault(attr => attr.GetType().Name.StartsWith("Http"));
+            if (httpAttr == null) return false;
+
+            var routeProp = httpAttr.GetType().GetProperty("Route");
+            if (routeProp != null)
+            {
+                var route = routeProp.GetValue(httpAttr) as string;
+                if (!string.IsNullOrEmpty(route))
+                    return segments[^1].Equals(route, StringComparison.OrdinalIgnoreCase);
+            }
+
+            var methodName = method.Name.ToLower();
+            var expected = methodName.Replace("get", "").Replace("post", "");
+            return segments[^1].Equals(expected, StringComparison.OrdinalIgnoreCase);
+        }
 
         private static async Task WriteResponseAsync(HttpListenerResponse response, string content)
         {
-            byte[] buffer = Encoding.UTF8.GetBytes(content);
-            // получаем поток ответа и пишем в него ответ
+            var buffer = Encoding.UTF8.GetBytes(content);
             response.ContentLength64 = buffer.Length;
-            using Stream output = response.OutputStream;
-            // отправляем данные
+            await using var output = response.OutputStream;
             await output.WriteAsync(buffer);
             await output.FlushAsync();
-
         }
-   }
+    }
 }

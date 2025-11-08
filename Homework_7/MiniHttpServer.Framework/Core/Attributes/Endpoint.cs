@@ -7,8 +7,8 @@ using System.Threading.Tasks;
 namespace MiniHttpServer.Core.Attributes
 {
     [AttributeUsage(AttributeTargets.Class)]
-    public class Endpoint : Attribute
+    public class EndpointAttribute : Attribute
     {
-        public Endpoint() { }
+        public EndpointAttribute() { }
     }
 }

@@ -29,10 +29,8 @@ namespace MiniHttpServer.Framework.Core.HttpResponse
 
 
             //Todo
-            // вызов с шаблонизатора
             // tests framework.unittetst
             // tests http server
-            // logika endpointhandler
         }
     }
 }

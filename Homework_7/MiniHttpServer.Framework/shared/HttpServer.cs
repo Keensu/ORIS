@@ -1,5 +1,6 @@
 ﻿using MiniHttpServer.Core.Abstracts;
 using MiniHttpServer.Core.Handlers;
+using MiniHttpServer.FrameWork.Core.Handlers;
 using MiniHttpServer.Settings;
 using System.Net;
 using System.Net.Mime;
