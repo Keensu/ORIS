@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "Новый профиль",
+    "Projects": [
+      {
+        "Path": "GameAndDot.Gui\\GameAndDot.Gui.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "GameAndDot.Server\\GameAndDot.Server.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

@@ -1,0 +1,53 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="GameAndDot.Maui.GamePage"
+             BackgroundColor="White">
+
+    <!-- Экран входа -->
+    <VerticalStackLayout x:Name="LoginPanel" IsVisible="True" Padding="30" Spacing="20">
+        <Label Text="Игра: Точки" FontSize="24" HorizontalOptions="Center" />
+        <Label Text="Введите ваше имя:" FontSize="18" />
+        <Entry x:Name="NameEntry" Placeholder="Имя игрока" FontSize="16" />
+        <Button Text="Войти в игру" Clicked="OnEnterClicked" FontSize="18" 
+                BackgroundColor="#4A90E2" TextColor="White" />
+    </VerticalStackLayout>
+
+    <!-- Игровой экран -->
+    <Grid x:Name="GamePanel" IsVisible="False">
+        <!-- Игровое поле -->
+        <GraphicsView x:Name="DrawingView" 
+                      HorizontalOptions="Fill" 
+                      VerticalOptions="Fill" 
+                      Background="#F5F5F5" />
+
+        <!-- Панель игрока (справа вверху) -->
+        <VerticalStackLayout HorizontalOptions="End" 
+                             VerticalOptions="Start" 
+                             Margin="10" 
+                             Background="#FFFFFF"
+                             Padding="10"
+                             Spacing="5">
+            <Label Text="Игрок:" FontSize="12" TextColor="#666" />
+            <Label x:Name="PlayerNameLabel" FontSize="14" />
+            <Label Text="Цвет:" FontSize="12" TextColor="#666" />
+            <Label x:Name="ColorLabel" FontSize="14" />
+        </VerticalStackLayout>
+
+        <!-- Список игроков (слева) -->
+        <CollectionView x:Name="PlayersList"
+                        HorizontalOptions="Start"
+                        VerticalOptions="Fill"
+                        WidthRequest="150"
+                        Background="#f0f0f0"
+                        Margin="10">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Label Padding="8,12"
+                           Text="{Binding .}"
+                           FontSize="14" />
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+</ContentPage>
